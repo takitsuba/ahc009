@@ -1,6 +1,8 @@
 import random
 from collections import deque
 
+random.seed(11)
+
 
 def init_input():
     start_i, start_j, goal_i, goal_j, p = input().split()
@@ -35,6 +37,85 @@ def init_input():
 
 
 moves = {"U": (-1, 0), "D": (1, 0), "L": (0, -1), "R": (0, 1)}
+
+
+def solve_straight(start, goal, h_walls, v_walls):
+    """極力直線で。ぶつかったら曲がる"""
+    # 今いる場所と向いてる方向ごとに、それに至るまでのrouteを保存する
+    visited = [
+        [{"U": None, "D": None, "L": None, "R": None} for _ in range(20)]
+        for _ in range(20)
+    ]
+    for direct in moves.keys():
+        visited[start[0]][start[1]][direct] = ""
+
+    # 上下左右のスタートの仕方がある
+    q = deque([(start, direct) for direct in moves.keys()])
+
+    while q:
+        now, direct = q.popleft()
+        route = visited[now[0]][now[1]][direct]
+
+        # print(now, direct, route)
+
+        if now == goal:
+            return route
+
+        # 200回進んでるのにゴールに辿り着けない場合
+        if len(route) >= 200:
+            return None
+
+        diff = moves[direct]
+
+        next_i = now[0] + diff[0]
+        next_j = now[1] + diff[1]
+
+        if (
+            (0 <= next_i <= 19)
+            and (0 <= next_j <= 19)
+            and visited[next_i][next_j][direct] is not None
+        ):
+            continue
+
+        if direct in ("U", "D"):
+            if direct == "U":
+                check_v = now
+            else:
+                check_v = (now[0] + 1, now[1])
+
+            can_move = v_walls[check_v[0]][check_v[1]] == 0
+
+        if direct in ("L", "R"):
+            if direct == "L":
+                check_h = now
+            else:
+                check_h = (now[0], now[1] + 1)
+
+            can_move = h_walls[check_h[0]][check_h[1]] == 0
+
+        # 壁がないので同じ方向に進む
+        if can_move:
+            assert 0 <= next_i <= 19
+            assert 0 <= next_j <= 19
+            q.append(((next_i, next_j), direct))
+            visited[next_i][next_j][direct] = route + direct
+
+        # 壁がある時だけ方向を変えられる
+        else:
+            # バックすることは無駄
+            if direct in ("U", "D"):
+                next_directs = ("L", "R")
+            else:
+                next_directs = ("U", "D")
+
+            for next_direct in next_directs:
+                if visited[now[0]][now[1]][next_direct] is not None:
+                    # すでにその場所でその方向を向いて進んだことがあるので pass
+                    continue
+                else:
+                    # そこに至るまでのrouteは変わらない（別の言い方をすれば、ノーアクションで向きを変えることが可能）
+                    visited[now[0]][now[1]][next_direct] = route
+                    q.append((now, next_direct))
 
 
 def solve_route(start, goal, h_walls, v_walls):
@@ -93,9 +174,51 @@ def solve_route(start, goal, h_walls, v_walls):
 def main():
     start, goal, p, h_walls, v_walls = init_input()
 
-    route = solve_route(start, goal, h_walls, v_walls)
+    route = solve_straight(start, goal, h_walls, v_walls)
 
-    print(route)
+    if route is None:
+        # 最短距離の方を使う
+        route = solve_route(start, goal, h_walls, v_walls)
+        max_add = 200 - len(route)
+
+        redundant = ""
+        forget_cnt = 0
+        for direction in list(route):
+            redundant += direction
+            if forget_cnt < max_add and random.uniform(0, 1) < p:
+                # 忘れそうなのでもう1回足しておく
+                redundant += direction
+                forget_cnt += 1
+
+        print(redundant)
+
+    else:
+        max_add = 200 - len(route)
+        compression = []
+        for d in list(route):
+            if len(compression) == 0:
+                compression.append([d, 1])
+                continue
+            if compression[-1][0] == d:
+                compression[-1][1] += 1
+            else:
+                compression.append([d, 1])
+
+        # print(compression)
+        redundant_compression = []
+        for d, cnt in compression:
+            cnt += int(max_add * (cnt / len(route)))
+            redundant_compression.append([d, cnt])
+        # print(redundant_compression)
+
+        redundant = ""
+        for d, cnt in redundant_compression:
+            redundant += d * cnt
+
+        if len(redundant) > 200:
+            print(redundant[:200])
+        else:
+            print(redundant)
 
 
 main()
