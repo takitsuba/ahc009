@@ -171,6 +171,70 @@ def solve_route(start, goal, h_walls, v_walls):
                 visited[next_i][next_j] = route + direction
 
 
+def solve_biased_route(start, goal, h_walls, v_walls):
+    """ゴールまでの経路の座標をリストで返す
+    STARTは含まず、GOALは含む。
+    """
+    visited = [[None for _ in range(20)] for _ in range(20)]
+    visited[start[0]][start[1]] = ""
+
+    q = deque([(start, direct) for direct in moves.keys()])
+
+    while q:
+        now, past_direct = q.popleft()
+        route = visited[now[0]][now[1]]
+        if now == goal:
+            return route
+
+        directions = list(moves.keys())
+        directions.remove(past_direct)
+        biased_directions = [past_direct] + directions
+
+        for direction in biased_directions:
+            diff = moves[direction]
+            next_i = now[0] + diff[0]
+            next_j = now[1] + diff[1]
+
+            # print(direction, next_i, next_j)
+            # そんな場所は存在しないか、
+            # すでに行ったことあるなら無視する
+            if (
+                (0 <= next_i <= 19)
+                and (0 <= next_j <= 19)
+                and visited[next_i][next_j] is not None
+            ):
+                continue
+
+            if direction in ("U", "D"):
+                if direction == "U":
+                    check_v = now
+                else:
+                    check_v = (now[0] + 1, now[1])
+
+                can_move = v_walls[check_v[0]][check_v[1]] == 0
+
+            if direction in ("L", "R"):
+                if direction == "L":
+                    check_h = now
+                else:
+                    check_h = (now[0], now[1] + 1)
+
+                can_move = h_walls[check_h[0]][check_h[1]] == 0
+
+            if past_direct == direction and not can_move:
+                more = True
+
+            if can_move:
+                assert 0 <= next_i <= 19
+                assert 0 <= next_j <= 19
+                q.append(((next_i, next_j), direction))
+                if more:
+                    visited[next_i][next_j] = route + direction * 3
+                else:
+                    visited[next_i][next_j] = route + direction
+                more = False
+
+
 def main():
     start, goal, p, h_walls, v_walls = init_input()
 
@@ -178,7 +242,7 @@ def main():
 
     if route is None:
         # 最短距離の方を使う
-        route = solve_route(start, goal, h_walls, v_walls)
+        route = solve_biased_route(start, goal, h_walls, v_walls)
         max_add = 200 - len(route)
 
         redundant = ""
